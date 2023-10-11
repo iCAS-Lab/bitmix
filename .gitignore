@@ -3,3 +3,4 @@ imagenet_eval.py
 inference_speed_test.py
 lambada.py
 *.csv
+__pycache__

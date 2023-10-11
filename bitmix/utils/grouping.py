@@ -3,23 +3,16 @@ def group_by_regex(alist, aregex):
     raise NotImplementedError
 
 def group_by_substrings(alist, substrs):
-    groups = []
-    for substr_group in substrs:
-        groups.append([])
-    groups.append([])
-
+    groups = [[] for _ in substrs] + [[]]
+    
     for item in alist:
-        found=False
+        found = False
         for i, substr_group in enumerate(substrs):
-            for substr in substr_group:
-                if substr in item:
-                    groups[i].append(item)
-                    found=True
-                    break
-                if found:
-                    break
-            if found:
+            if any(substr in item for substr in substr_group):
+                groups[i].append(item)
+                found = True
                 break
         if not found:
-            groups[len(groups)-1].append(item)
+            groups[-1].append(item)
+    
     return groups

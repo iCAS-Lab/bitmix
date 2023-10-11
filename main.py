@@ -16,6 +16,8 @@ conv2ds = bitmix.utils.get_paths_of_instance(model.base_model)
 linears = bitmix.utils.get_paths_of_instance(model.base_model, instance_type=nn.Linear)
 qkv, ffn, _ = bitmix.utils.group_by_substrings(linears, [["query", "key", "value"], ["dense"]])
 
+print(linears)
+
 qkv_w = 8
 ffn_w = 8
 

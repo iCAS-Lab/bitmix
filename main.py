@@ -25,7 +25,6 @@ quant_config_linear = [
     bitmix.utils.get_quant_config(qkv, in_bits=qkv_w, weight_bits=8, out_bits=qkv_w),
     bitmix.utils.get_quant_config(ffn, in_bits=ffn_w, weight_bits=8, out_bits=ffn_w)]
 
-#quant_config_conv2ds = [bitmix.utils.get_quant_config(a) for a in [conv2ds]]
 quant_config = quant_config_linear
 
 calibration_model = bitmix.ptq.get_calibration_model(model.base_model, quant_config)

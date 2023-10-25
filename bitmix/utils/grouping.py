@@ -1,5 +1,6 @@
 import re
 def group_by_regex(alist, aregex):
+    #TODO implement grouping by regex
     raise NotImplementedError
 
 def group_by_substrings(alist, substrs):

@@ -55,7 +55,9 @@ class CoreModule(nn.Module):
                 self.output_rep_data = [self.main_module(x.to(_device)).cpu() for x in self.input_rep_data]
                 self.smooth_x = inv_diag_s
 
-
+            # Quantization and Training of Neural Networks for Efficient Integer-Arithmetic-Only Inference
+            # https://openaccess.thecvf.com/content_cvpr_2018/papers/Jacob_Quantization_and_Training_CVPR_2018_paper.pdf
+            
             self.min_inp = torch.min(torch.tensor([torch.min(x) for x in self.input_rep_data])).to(_device)
             self.max_inp = torch.max(torch.tensor([torch.max(x) for x in self.input_rep_data])).to(_device)
             self.min_out = torch.min(torch.tensor([torch.min(x) for x in self.output_rep_data])).to(_device)

@@ -12,6 +12,12 @@ def get_module(module, name, depth=1):
     module = getattr(module, mod_name)
     return get_module(module, name, depth=depth)
 
+def replace_modules(model, module_name_list, replace_fn):
+    for name in module_name_list:
+        module, parent, module_name = get_module_parents(model, name)
+        replace_module = replace_fn(module, parent, module_name)
+        setattr(parent, module_name, replace_module)
+
 def get_module_parents(model, name):
     parent, module_name = bitmix.utils.get_module(model, name, depth=2)
     module_name = module_name.split(".")[0]

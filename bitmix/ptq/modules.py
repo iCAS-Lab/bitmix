@@ -1,4 +1,4 @@
-from bitmix.utils import quantize_tensor, get_quant_params
+from bitmix.utils import quantize_tensor, get_quant_params, get_quant_act_params
 import numpy as np
 
 import torch
@@ -21,50 +21,80 @@ class CoreModule(nn.Module):
         self.weight_bits = weight_bits
         self.out_bits = out_bits
         self.quantized = False
+        self.smooth_quant = False
 
-    def quantize_module(self):
+    def quantize_module(self, smoothing_factor=-1):
         if self.quantized:
             return
         assert not len(self.input_rep_data)==0, "You must calibrate the model before quantizing"
         assert not len(self.output_rep_data)==0, "You must calibrate the model before quantizing"
 
-        self.input_rep_data = torch.squeeze(torch.tensor(np.array(self.input_rep_data)))
-        self.output_rep_data = torch.squeeze(torch.tensor(np.array(self.output_rep_data)))
+        with torch.no_grad():
+            _device = self.main_module.weight.device
+            self.smooth_quant = not (smoothing_factor==-1)
 
-        self.min_inp, self.max_inp = torch.min(self.input_rep_data), torch.max(self.input_rep_data)
-        self.min_out, self.max_out = torch.min(self.output_rep_data), torch.max(self.output_rep_data)
+            if self.smooth_quant:
+                # SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models
+                # https://arxiv.org/pdf/2211.10438.pdf
+                assert smoothing_factor>=0 and smoothing_factor<=1
+                
+                x_max = torch.amax(torch.stack([torch.amax(torch.abs(x.view(-1,x.shape[-1])),dim=0) for x in self.input_rep_data]), dim=0).to(_device)
+                w_max = torch.amax(torch.abs(self.main_module.weight.data), dim=0).to(_device)
 
-        self.input_quant_params = get_quant_params(self.input_rep_data, symmetric=False, n_bits=self.in_bits)
-        self.weight_quant_params = get_quant_params(self.main_module.weight.data, n_bits=self.weight_bits, per_axis=isinstance(self.main_module, nn.Conv2d))
-        self.output_quant_params = get_quant_params(self.output_rep_data, symmetric=False, n_bits=self.out_bits)
+                x_max=x_max**(smoothing_factor)
+                w_max=w_max**(1-smoothing_factor)
 
-        s1,z1 = self.input_quant_params # input scale and zero point
-        s2,z2 = self.weight_quant_params # weight scale and zero point
-        s3,z3 = self.output_quant_params # output scale and zero point
+                s = x_max/w_max
+                s[s==0] = 1e-4
+                diag_s = torch.eye(s.shape[0]).to(_device)*s
+                inv_diag_s = torch.inverse(diag_s)
 
-        sb,zb = s1*s2, torch.tensor([0]) # bias scale and zero point
+                s_weights = torch.matmul(diag_s,self.main_module.weight.data.T).T
+                setattr(self.main_module.weight, "data", s_weights.type(torch.float32))
+                self.input_rep_data = [torch.matmul(x.to(_device),inv_diag_s).cpu() for x in self.input_rep_data]
+                self.output_rep_data = [self.main_module(x.to(_device)).cpu() for x in self.input_rep_data]
+                self.smooth_x = inv_diag_s
 
-        weights = self.main_module.weight.data
-        if len(self.weight.shape)>2:
-            q_weights = quantize_tensor(weights, s2.view(weights.shape[0],1,1,1), z2)
-        else:
-            q_weights = quantize_tensor(weights, s2, z2)
-        setattr(self.main_module.weight, "data", q_weights.type(torch.float32))
 
-        if self.main_module.bias is not None:
-            bias = self.main_module.bias.data
-            q_bias = quantize_tensor(bias, torch.squeeze(sb), zb, dtype=torch.int32)
-            setattr(self.main_module.bias, "data", q_bias.type(torch.float32))
+            self.min_inp = torch.min(torch.tensor([torch.min(x) for x in self.input_rep_data])).to(_device)
+            self.max_inp = torch.max(torch.tensor([torch.max(x) for x in self.input_rep_data])).to(_device)
+            self.min_out = torch.min(torch.tensor([torch.min(x) for x in self.output_rep_data])).to(_device)
+            self.max_out = torch.max(torch.tensor([torch.max(x) for x in self.output_rep_data])).to(_device)
 
-        q2 = torch.sum(q_weights, [i for i in range(1,len(q_weights.shape))])
-        self.q2z1 = q2*z1
-        if len(self.weight.shape)>2:
-            self.q2z1 = self.q2z1.view(1,self.q2z1.shape[0],1,1)
+            self.input_quant_params = get_quant_act_params(self.input_rep_data, n_bits=self.in_bits, device=_device)
+            self.output_quant_params = get_quant_act_params(self.output_rep_data, n_bits=self.out_bits, device=_device)
+            self.weight_quant_params = get_quant_params(self.main_module.weight.data, n_bits=self.weight_bits,
+                                                        per_axis=isinstance(self.main_module, nn.Conv2d))
+                
 
-        self.m = (s1*s2)/s3
-        if len(self.weight.shape)>2:
-            self.m = self.m.view(1,self.m.shape[0],1,1)
-        self.quantized = True
+            s1,z1 = self.input_quant_params # input scale and zero point
+            s2,z2 = self.weight_quant_params # weight scale and zero point
+            s3,z3 = self.output_quant_params # output scale and zero point
+
+            sb,zb = s1*s2, torch.tensor([0]).to(_device) # bias scale and zero point
+
+            weights = self.main_module.weight.data
+            if len(self.weight.shape)>2:
+                q_weights = quantize_tensor(weights, s2.view(weights.shape[0],1,1,1), z2)
+            else:
+                q_weights = quantize_tensor(weights, s2, z2)
+                
+            setattr(self.main_module.weight, "data", q_weights.type(torch.float32))
+
+            if self.main_module.bias is not None:
+                bias = self.main_module.bias.data
+                q_bias = quantize_tensor(bias, torch.squeeze(sb), zb, dtype=torch.int32)
+                setattr(self.main_module.bias, "data", q_bias.type(torch.float32))
+
+            q2 = torch.sum(q_weights, [i for i in range(1,len(q_weights.shape))])
+            self.q2z1 = q2*z1
+            if len(self.weight.shape)>2:
+                self.q2z1 = self.q2z1.view(1,self.q2z1.shape[0],1,1)
+
+            self.m = (s1*s2)/s3
+            if len(self.weight.shape)>2:
+                self.m = self.m.view(1,self.m.shape[0],1,1)
+            self.quantized = True
     
     @property
     def weight(self):
@@ -72,17 +102,20 @@ class CoreModule(nn.Module):
     
     def forward(self, x):
         if not self.quantized:
-            self.input_rep_data.append(x.numpy())
+            self.input_rep_data.append(torch.unsqueeze(x.cpu(), dim=0))
             x = self.main_module(x)
-            self.output_rep_data.append(x.numpy())
+            self.output_rep_data.append(torch.unsqueeze(x.cpu(), dim=0))
             return x
 
         s1,z1 = self.input_quant_params
         s3,z3 = self.output_quant_params
 
         if self.quantize_input:
+            if self.smooth_quant:
+                x=torch.matmul(x,self.smooth_x)
             x = torch.clamp(x, min=self.min_inp, max=self.max_inp)
             x = quantize_tensor(x, s1, z1).type(torch.float32)
+
         
         x = self.main_module(x)
         x = (x - self.q2z1)*self.m + z3

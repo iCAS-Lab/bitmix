@@ -84,7 +84,7 @@ def accuracy(model, data_loader, n_samples=-1):
 dataset = torch.utils.data.DataLoader(datasets.ImageFolder(TEST_PATH, transform_list), batch_size=1, shuffle=False, num_workers=8, pin_memory=True)
 print("Calibrating model...")
 calibrate(model, dataset, n_samples=100)
-bitmix.ptq.quantize_calibrated_model(model.base_model)
+bitmix.ptq.quantize_calibrated_model(model.base_model, smoothing_factor=0.5)
 acc = accuracy(model, dataset)
 
 import pandas as pd

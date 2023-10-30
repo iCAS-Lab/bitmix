@@ -32,5 +32,17 @@ def get_paths_of_instance(model: torch.nn.Module, instance_type=nn.Conv2d):
         module, param_name = get_module(model, name)
         if "weight" in param_name and isinstance(module, instance_type):
             return_modules.append((name))
+    return return_modules
 
+def get_paths_of_activations(model, instance_type, path="model"):
+    return_modules = []
+    for module_name in dir(model):
+        if isinstance(getattr(model, module_name), nn.Module):
+            module = getattr(model, module_name)
+            if module==model:
+                continue
+            elif isinstance(module, instance_type):
+                return_modules.append(path)
+            else:
+                return_modules += get_paths_of_activations(module, instance_type, path=path+"."+module_name)
     return return_modules

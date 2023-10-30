@@ -37,10 +37,10 @@ def get_quant_act_params(x, n_bits=8, device=None):
         scale, zero_point = scale.to(device), zero_point.to(device)
     return scale, zero_point
 
-def get_quant_config(group, in_bits=DEFUALT_INPUT_NBITS, weight_bits=DEFUALT_WEIGHT_NBITS, out_bits=DEFUALT_OUTPUT_NBITS):
+def get_quant_config(group, in_bits=DEFUALT_INPUT_NBITS, weight_bits=DEFUALT_WEIGHT_NBITS, out_bits=DEFUALT_OUTPUT_NBITS, quantize_output=False, quantize_input=True):
     return {"modules":group,
             "in_bits":in_bits,
             "weight_bits":weight_bits,
             "out_bits":out_bits,
-            "quantize_output":False,
-            "quantize_input":True}
+            "quantize_output":quantize_output,
+            "quantize_input":quantize_input}

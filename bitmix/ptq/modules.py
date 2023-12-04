@@ -81,12 +81,12 @@ class CoreModule(nn.Module):
             else:
                 q_weights = quantize_tensor(weights, s2, z2)
                 
-            setattr(self.main_module.weight, "data", q_weights.type(torch.float32))
+            setattr(self.main_module.weight, "data", q_weights.type(torch.float64))
 
             if self.main_module.bias is not None:
                 bias = self.main_module.bias.data
                 q_bias = quantize_tensor(bias, torch.squeeze(sb), zb, dtype=torch.int32)
-                setattr(self.main_module.bias, "data", q_bias.type(torch.float32))
+                setattr(self.main_module.bias, "data", q_bias.type(torch.float64))
 
             q2 = torch.sum(q_weights, [i for i in range(1,len(q_weights.shape))])
             self.q2z1 = q2*z1
@@ -116,7 +116,7 @@ class CoreModule(nn.Module):
             if self.smooth_quant:
                 x=torch.matmul(x,self.smooth_x)
             x = torch.clamp(x, min=self.min_inp, max=self.max_inp)
-            x = quantize_tensor(x, s1, z1).type(torch.float32)
+            x = quantize_tensor(x, s1, z1).type(torch.float64)
 
         
         x = self.main_module(x)
@@ -124,7 +124,7 @@ class CoreModule(nn.Module):
 
         if not self.quantize_output:
             x = s3*(x - z3)
-            x = torch.clamp(x, min=self.min_out, max=self.max_out)
+            x = torch.clamp(x, min=self.min_out, max=self.max_out).type(torch.float32)
         return x
 
 

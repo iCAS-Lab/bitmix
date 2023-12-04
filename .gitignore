@@ -20,6 +20,11 @@ embedding_vit.py
 pytorch-cifar/
 qat_training_cifar10.py
 *.sh
+eval_cifar_model.py
+qat_training_cifar100.py
+vit_model_info.py
+main.py
+models.py
 qat_training.py
 train_float.py
 utils.py

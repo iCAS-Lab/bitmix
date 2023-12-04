@@ -5,7 +5,7 @@ DEFUALT_INPUT_NBITS = 8
 DEFUALT_OUTPUT_NBITS = 8
 DEFUALT_WEIGHT_NBITS = 8
 
-def quantize_tensor(tensor, scale, zero_point, dtype=torch.int32):
+def quantize_tensor(tensor, scale, zero_point, dtype=torch.int64):
         tensor = torch.floor(tensor/scale)
         tensor += zero_point
         tensor = tensor.type(dtype)

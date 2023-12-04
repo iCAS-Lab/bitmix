@@ -6,6 +6,7 @@ lambada.py
 *.csv
 __pycache__
 run_scripts
+pytorch-cifar
 data
 .cache
 models

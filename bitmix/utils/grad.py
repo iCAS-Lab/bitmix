@@ -66,7 +66,7 @@ class QuantConv2DGradNoBias(torch.autograd.Function):
     Forward and backwards pass for a ternary conv w/o bias
     """
     @staticmethod
-    def forward(ctx, input, weight, stride, padding, groups, wbits):
+    def forward(ctx, input, weight, stride, padding, groups, dilation, wbits):
 
         ctx.stride=stride
         ctx.padding=padding

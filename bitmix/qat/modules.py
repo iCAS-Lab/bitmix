@@ -41,6 +41,10 @@ class QuantizationWrapper(nn.Module):
     def weight(self):
         return self.main_module.weight
 
+    @property
+    def bias(self):
+        return self.main_module.bias
+
     def forward(self, x):
         if self.step>=self.warmup_steps and not self.quantized:
             self.quantize()
